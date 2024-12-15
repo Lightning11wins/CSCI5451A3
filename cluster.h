@@ -1,8 +1,7 @@
 #ifndef CLUSTER_H_
 #define CLUSTER_H_
+
 #include <math.h>
-#include <omp.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,16 +20,36 @@
 #define print_timer() print_time(duration(start, end))
 
 #define convergence_threshold 0.000001
-#define cluster_output_file_name "clusters.txt"
-#define medoid_output_file_name "medoids.txt"
+#define CLUSTER_OUTPUT_PATH "clusters.txt"
+#define MEDOID_OUTPUT_PATH "medoids.txt"
+
+static inline void get_exe_name(char* buffer, size_t buffer_size) {
+    char exePath[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+
+    if (count == -1) {
+        perror("readlink");
+        exit(1);
+    }
+    
+    exePath[count] = '\0'; // Null-terminate the path
+    char* exeName = strrchr(exePath, '/'); // Find the last '/'
+    if (exeName) {
+        exeName++; // Move past the last '/'
+    } else {
+        exeName = exePath; // If no '/' found, the whole path is the name
+    }
+    strncpy(buffer, exeName, buffer_size - 1); // Copy the name into the buffer
+    buffer[buffer_size - 1] = '\0'; // Ensure null-termination
+}
 
 /**
-* @brief Return the number of seconds since an unspecified time (e.g., Unix
-*        epoch). This is accomplished with a high-resolution monotonic timer,
-*        suitable for performance timing.
-*
-* @return The number of seconds.
-*/
+ * @brief Return the number of seconds since an unspecified time (e.g., Unix
+ *        epoch). This is accomplished with a high-resolution monotonic timer,
+ *        suitable for performance timing.
+ *
+ * @return The number of seconds.
+ */
 static inline double monotonic_seconds() {
   #ifdef __MACH__
     // OSX
@@ -50,10 +69,10 @@ static inline double monotonic_seconds() {
 }
 
 /**
-* @brief Output the seconds elapsed while clustering.
-*
-* @param seconds Seconds spent on k-medoids clustering, excluding IO.
-*/
+ * @brief Output the seconds elapsed while clustering.
+ *
+ * @param seconds Seconds spent on k-medoids clustering, excluding IO.
+ */
 static inline void print_time(double const seconds) {
     printf("k-medoids clustering time: %0.04fs\n", seconds);
 }
