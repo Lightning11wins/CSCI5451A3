@@ -102,15 +102,15 @@ __global__
 void assign_points_to_clusters(
     int* point_medoid_ids,
     double* points,
-    int num_points,
+    int* num_points_ptr,
     int* medoids,
-    int num_medoids,
-    int num_dims,
+    int* num_medoids_ptr,
+    int* num_dims_ptr,
 ) {
     // Calculate my point allocation.
     int p = gridDim.x * blockDim.x;
     int i = threadIdx.x + blockIdx.x * blockDim.x;
-    int n = num_points;
+    int n = *num_points_ptr;
     int start, end;
     get_chunk(p, i, n, &start, &end);
 
@@ -120,10 +120,10 @@ void assign_points_to_clusters(
         int closest_medoid_id = -1;
 
         // Itterate through medoids to find the closest one.
-        for (int id = 0; id < num_medoids; id++) {
+        for (int id = 0; id < *num_medoids_ptr; id++) {
             const double* point = points + point_id;
             const double* medoid = points + medoids[id];
-            double distance = distance(point, medoid, num_dims);
+            double distance = distance(point, medoid, *num_dims_ptr);
             if (distance < min_distance) {
                 min_distance = distance;
                 medoid_cluster_id = id;
@@ -132,6 +132,37 @@ void assign_points_to_clusters(
 
         // Update this point to be part of the closest cluster.
         point_medoid_ids[point_id] = medoid_cluster_id;
+    }
+}
+
+__global__
+void get_cluster_sizes(
+    double* point_cluster_sizes,
+    double* points,
+    int* point_medoid_ids,
+    int* num_points_ptr,
+    int* num_dims_ptr,
+) {
+    int p = gridDim.x * blockDim.x;
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    int n = *num_points_ptr;
+    int start, end;
+    get_chunk(p, i, n, &start, &end);
+    
+    int num_points = *num_points_ptr;
+    int num_dims = *num_dims_ptr;
+
+    // Calculate the cluster size for each point if that point were the mediod
+    for (int point_id = 0; point_id < num_points; point_id++) {
+        double total_distance = 0.0;
+        int point_count = 0;
+        for (int other_point_id = 0; other_point_id < num_points; other_point_id++) {
+            if (point_medoid_ids[other_point_id] == point_medoid_ids[point_id]) {
+                total_distance += distance(points + other_point_id, points + point_id, num_dims);
+                point_count++;
+            }
+        }
+        point_cluster_sizes[point_id] = total_distance / point_count;
     }
 }
 
@@ -176,57 +207,91 @@ int main(int argc, char* argv[]) {
     int point_medoid_ids[num_points];
 
     for (int iteration = 0; iteration < 20; iteration++) {
-        // Assign points to medoids.
-        int* gpu_point_medoid_ids;
-        double* gpu_points;
-        int gpu_num_points;
-        int* gpu_medoids;
-        int gum_clusters;
-        int gpu_num_dims;
+        {   // Assign points to medoids.
+            int* gpu_point_medoid_ids;
+            double* gpu_points;
+            int* gpu_num_points_ptr;
+            int* gpu_medoids;
+            int* gpu_num_clusters_ptr;
+            int* gpu_num_dims_ptr;
 
-        check_cuda(cudaMalloc((void**) &gpu_point_medoid_ids, num_points * sizeof(int)),            "cudaMalloc");
-        check_cuda(cudaMalloc((void**) &gpu_points,           num_points * num_dims * sizeof(int)), "cudaMalloc");
-        check_cuda(cudaMalloc((void**) &gpu_num_points,       sizeof(int)),                         "cudaMalloc");
-        check_cuda(cudaMalloc((void**) &gpu_medoids,          num_medoids * sizeof(int)),           "cudaMalloc");
-        check_cuda(cudaMalloc((void**) &gpu_num_clusters,     sizeof(int)),                         "cudaMalloc");
-        check_cuda(cudaMalloc((void**) &gpu_num_dims,         sizeof(int)),                         "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_point_medoid_ids, num_points * sizeof(int)),               "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_points,           num_points * num_dims * sizeof(double)), "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_num_points_ptr,   sizeof(int)),                            "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_medoids,          num_medoids * sizeof(int)),              "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_num_clusters_ptr, sizeof(int)),                            "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_num_dims_ptr,     sizeof(int)),                            "cudaMalloc");
 
-        check_cuda(cudaMemcpy(gpu_point_medoid_ids, point_medoid_ids,  num_points * sizeof(int),            TO_GPU), "cudaMemcpyTo");
-        check_cuda(cudaMemcpy(gpu_points,           points,            num_points * num_dims * sizeof(int), TO_GPU), "cudaMemcpyTo");
-        check_cuda(cudaMemcpy(gpu_num_points,       num_points,        sizeof(int),                         TO_GPU), "cudaMemcpyTo");
-        check_cuda(cudaMemcpy(gpu_medoids,          medoids,           num_medoids * sizeof(int),           TO_GPU), "cudaMemcpyTo");
-        check_cuda(cudaMemcpy(gpu_num_clusters,     num_medoids,       sizeof(int),                         TO_GPU), "cudaMemcpyTo");
-        check_cuda(cudaMemcpy(gpu_num_dims,         num_dims,          sizeof(int),                         TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_point_medoid_ids, point_medoid_ids,  num_points * sizeof(int),               TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_points,           points,            num_points * num_dims * sizeof(double), TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_num_points_ptr,   &num_points,       sizeof(int),                            TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_medoids,          medoids,           num_medoids * sizeof(int),              TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_num_clusters_ptr, &num_medoids,      sizeof(int),                            TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_num_dims_ptr,     &num_dims,         sizeof(int),                            TO_GPU), "cudaMemcpyTo");
 
-        assign_points_to_clusters<<<num_blocks, num_threads_per_block>>>(
-            gpu_point_medoid_ids,
-            gpu_points,
-            gpu_num_points,
-            gpu_medoids,
-            gpu_num_clusters,
-            gpu_num_dims,
-        );
+            assign_points_to_clusters<<<num_blocks, num_threads_per_block>>>(
+                gpu_point_medoid_ids,
+                gpu_points,
+                gpu_num_points_ptr,
+                gpu_medoids,
+                gpu_num_clusters_ptr,
+                gpu_num_dims_ptr,
+            );
+            
+            check_cuda(cudaMemcpy(point_medoid_ids, gpu_point_medoid_ids, num_points * sizeof(int), FROM_GPU), "cudaMemcpyFrom");
+            
+            check_cuda(cudaFree(gpu_point_medoid_ids), "cudaFree");
+            check_cuda(cudaFree(gpu_points),           "cudaFree");
+            check_cuda(cudaFree(gpu_num_points_ptr),   "cudaFree");
+            check_cuda(cudaFree(gpu_medoids),          "cudaFree");
+            check_cuda(cudaFree(gpu_num_clusters_ptr), "cudaFree");
+            check_cuda(cudaFree(gpu_num_dims_ptr),     "cudaFree");
+        }
+
+         // point_cluster_sizes: The size of this cluster if this the point with this id were the medoid.
+        double point_cluster_sizes[num_points];
+        for (int i = 0; i < num_points; i++) point_cluster_sizes[i] = INFINITY; // Remove later
         
-        check_cuda(cudaMemcpy(point_medoid_ids, gpu_point_medoid_ids, num_points * sizeof(int), FROM_GPU), "cudaMemcpyFrom");
-        
-        check_cuda(cudaFree(gpu_point_medoid_ids), "cudaFree");
-        check_cuda(cudaFree(gpu_points),           "cudaFree");
-        check_cuda(cudaFree(gpu_num_points),       "cudaFree");
-        check_cuda(cudaFree(gpu_medoids),          "cudaFree");
-        check_cuda(cudaFree(gum_clusters),         "cudaFree");
-        check_cuda(cudaFree(gpu_num_dims),         "cudaFree");
+        {
+            double* gpu_point_cluster_sizes;
+            double* gpu_points;
+            int* gpu_point_medoid_ids;
+            int* gpu_num_points_ptr;
+            int* gpu_num_dims_ptr;
+            
+            check_cuda(cudaMalloc((void**) &gpu_point_cluster_sizes, num_points * sizeof(double)),            "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_points,              num_points * num_dims * sizeof(double)), "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_point_medoid_ids,    num_points * sizeof(int)),               "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_num_points_ptr,      sizeof(int)),                            "cudaMalloc");
+            check_cuda(cudaMalloc((void**) &gpu_num_dims_ptr,        sizeof(int)),                            "cudaMalloc");
 
-        // Assign medoids to clusters of points.
-        double medoid_sizes[num_medoids];
-        for (int i = 0; i < num_medoids; i++) medoid_sizes[i] = INFINITY;
-        
-        for (int point_id = 0; point_id < num_points; point_id++) { // Iterate through each point
-            const int medoid_id = point_medoid_ids[point_id];
+            check_cuda(cudaMemcpy(gpu_point_cluster_sizes, point_cluster_sizes, num_points * sizeof(double),            TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_points,              points,              num_points * num_dims * sizeof(double), TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_point_medoid_ids,    point_medoid_ids,    num_points * sizeof(int),               TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_num_points_ptr,      &num_points,         sizeof(int),                            TO_GPU), "cudaMemcpyTo");
+            check_cuda(cudaMemcpy(gpu_num_dims_ptr,        &num_dims,           sizeof(int),                            TO_GPU), "cudaMemcpyTo");
+            
+            get_cluster_sizes<<<num_blocks, num_threads_per_block>>>(
+                gpu_point_cluster_sizes,
+                gpu_points,
+                gpu_medoids,
+                gpu_point_medoid_ids,
+                gpu_num_points_ptr,
+                gpu_num_dims_ptr
+            );
+            
+            check_cuda(cudaMemcpy(point_cluster_sizes, gpu_point_cluster_sizes, num_medoids * sizeof(double), FROM_GPU), "cudaMemcpyFrom");
+            
+            check_cuda(cudaFree(gpu_point_cluster_sizes), "cudaFree");
+            check_cuda(cudaFree(gpu_points),              "cudaFree");
+            check_cuda(cudaFree(gpu_point_medoid_ids),    "cudaFree");
+            check_cuda(cudaFree(gpu_num_points_ptr),      "cudaFree");
+            check_cuda(cudaFree(gpu_num_dims_ptr),        "cudaFree");
+        }
 
-            // Calculate the size of this cluster if this point were the new medoid.
-            double size = get_cluster_size(point_id, point_medoid_ids, (const double*) points, num_points, num_dims);
-
-            // If this medoid leads to a smaller cluster than we've found, use it as the cluster's new medoid.
+        double medoid_sizes[num_points];
+        for (int point_id = 0; point_id < num_points; point_id++) {
+            double size = point_cluster_sizes[point_id];
             if (size < medoid_sizes[medoid_id]) {
                 medoid_sizes[medoid_id] = size;
                 medoids[medoid_id] = point_id;
@@ -237,7 +302,13 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < num_medoids; i++) total_size += medoid_sizes[i];
         double new_average_cluster_size = total_size / num_medoids;
         double dif = average_cluster_size - new_average_cluster_size;
-        printf("Cluster size was %f, but is now %f (dif: %f). %d iterations remaining\n", average_cluster_size, new_average_cluster_size, dif, iterations);
+        printf("Cluster size was %f, but is now %f (dif: %f). %d iterations remaining\n", average_cluster_size, new_average_cluster_size, dif, 20 - iterations);
+
+        if (dif < 0) {
+            // This should not be possible.
+            printf("EXISTANCE BRINGS PAIN, PLEASE FREE ME!!\n");
+            fflush(stdout);
+        }
 
         if (dif < convergence_threshold) break;
         average_cluster_size = new_average_cluster_size;
