@@ -21,6 +21,8 @@
 #define stop_timer() const double end = monotonic_seconds()
 #define print_timer() print_time(duration(start, end))
 
+#define TO_GPU cudaMemcpyHostToDevice
+#define FROM_GPU cudaMemcpyDeviceToHost
 #define convergence_threshold 0.000001
 #define CLUSTER_OUTPUT_PATH "clusters.txt"
 #define MEDOID_OUTPUT_PATH "medoids.txt"
