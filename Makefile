@@ -14,9 +14,9 @@ ZIP = fulle637.tar.gz
 ZIP_DIR = fulle637
 EXE = km_cuda
 
-SUPRESS = # -Xcudafe="--diag_suppress=177"
+SUPRESS = -Xcudafe="--diag_suppress=177"
 
-.PHONY: run all clean load
+.PHONY: run all clean load $(EXE)
 
 run: $(EXE)
 	./$(EXE) $(PARAMS)
