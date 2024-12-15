@@ -56,7 +56,7 @@ static inline void write_medoids(double** points, int* medoids, int num_clusters
     check(fclose(file), "fclose()");
 }
 
-static inline void print_points(int num_points, int num_dimensions, double** points) {
+static inline void print_points(double** points, int num_points, int num_dimensions) {
     printf("%dx%d\n", num_points, num_dimensions);
     for (int i = 0; i < num_points; i++) {
         for (int j = 0; j < num_dimensions; j++) {
@@ -66,14 +66,14 @@ static inline void print_points(int num_points, int num_dimensions, double** poi
     }
 }
 
-static inline void free_points(int num_points, int num_dimensions, double** points) {
+static inline void free_points(double** points, int num_points) {
     for (int i = 0; i < num_points; i++) {
         free(points[i]);
     }
     free(points);
 }
 
-static inline double get_cluster_size(const int medoid_id, const int* point_cluster_ids, const int num_points, const double** points, int num_dimensions) {
+static inline double get_cluster_size(const int medoid_id, const int* point_cluster_ids, const double** points, const int num_points, int num_dimensions) {
     double total_distance = 0.0;
     int point_count = 0;
     for (int point_id = num_points - 1; point_id >= 0; point_id--) {
@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
         #pragma omp parallel for schedule(dynamic) default(shared)
         for (int point_id = num_points - 1; point_id >= 0; point_id--) { // Iterate through each point
             const int cluster_id = point_cluster_ids[point_id];
-            double size = get_cluster_size(point_id, point_cluster_ids, num_points, (const double**) points, num_dimensions);
+            double size = get_cluster_size(point_id, point_cluster_ids, (const double**) points, num_points, num_dimensions);
             if (size < medoid_sizes[cluster_id]) { // Check if the point should be the new medoid
                 medoid_sizes[cluster_id] = size;
                 medoids[cluster_id] = point_id;
@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
     write_medoids(points, medoids, num_clusters, num_dimensions);
 
     // Cleanup main memory.
-    free_points(num_points, num_dimensions, points);
+    free_points(points, num_points);
 
     return 0; // Success
 }
