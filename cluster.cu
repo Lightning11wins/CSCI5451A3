@@ -37,18 +37,18 @@ static inline void write_clusters(int* point_cluster_ids, int num_points) {
     check(fclose(file), "fclose()");
 }
 
-static inline void write_medoids(double** points, int* medoids, int num_clusters, int num_dimensions) {
+static inline void write_medoids(double** points, int* medoids, int num_clusters, int num_dims) {
     FILE *file = fopen(MEDOID_OUTPUT_PATH, "w");
     if (file == NULL) {
         perror("cluster.c: Fail - fopen()");
         exit(1);
     }
 
-    fprintf(file, "%d %d", num_clusters, num_dimensions);
+    fprintf(file, "%d %d", num_clusters, num_dims);
     for (int id = num_clusters - 1; id >= 0; id--) {
         double* medoid = points[medoids[id]];
         fprintf(file, "\n%.4f", medoid[0]);
-        for (int dim = 1; dim < num_dimensions; dim++) {
+        for (int dim = 1; dim < num_dims; dim++) {
             fprintf(file, " %.4f", medoid[dim]);
         }
     }
@@ -56,10 +56,10 @@ static inline void write_medoids(double** points, int* medoids, int num_clusters
     check(fclose(file), "fclose()");
 }
 
-static inline void print_points(double** points, int num_points, int num_dimensions) {
-    printf("%dx%d\n", num_points, num_dimensions);
+static inline void print_points(double** points, int num_points, int num_dims) {
+    printf("%dx%d\n", num_points, num_dims);
     for (int i = 0; i < num_points; i++) {
-        for (int j = 0; j < num_dimensions; j++) {
+        for (int j = 0; j < num_dims; j++) {
             printf("%.1f ", points[i][j]);
         }
         printf("\n");
@@ -73,12 +73,13 @@ static inline void free_points(double** points, int num_points) {
     free(points);
 }
 
-static inline double get_cluster_size(const int medoid_id, const int* point_cluster_ids, const double** points, const int num_points, int num_dimensions) {
+static inline double get_cluster_size(const int medoid_id, const int* point_cluster_ids, const double** points, const int num_points, int num_dims) {
     double total_distance = 0.0;
     int point_count = 0;
-    for (int point_id = num_points - 1; point_id >= 0; point_id--) {
-        if (point_cluster_ids[point_id] == point_cluster_ids[medoid_id]) {
-            total_distance += euclidean_distance(points[point_id], points[medoid_id], num_dimensions);
+    int cluster_id = point_cluster_ids[medoid_id];
+    for (int point_id = 0; point_id < num_points; point_id++) {
+        if (point_cluster_ids[point_id] == cluster_id) {
+            total_distance += euclidean_distance(points[point_id], points[medoid_id], num_dims);
             point_count++;
         }
     }
