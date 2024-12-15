@@ -31,9 +31,10 @@ load:
 	module initrm soft/cuda
 
 clean:
-	rm -f $(EXE) $(ZIP)
+	rm -f $(EXE) $(ZIP) medoids.txt clusters.txt
 	git repack -a -d --depth=2500 --window=2500
 	git gc --aggressive --prune=now
+	du -a | sort -n
 
 submission: clean
 	mkdir $(ZIP_DIR)
