@@ -2,6 +2,7 @@
 *.o
 *.s
 hello_cuda
+km_cuda
 
 # Output files
 clusters.txt

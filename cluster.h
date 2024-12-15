@@ -38,24 +38,26 @@
  * characters being chopped off of the file name.
  */
 static inline void get_exe_name(char* buffer, size_t buffer_size) {
-    char exePath[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+    sprintf(buffer, "km_cuda"); // TODO: Remove this terrible hack.
 
-    if (count == -1) {
-        perror("readlink");
-        exit(1);
-    }
+    // char exePath[PATH_MAX];
+    // ssize_t count = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+
+    // if (count == -1) {
+    //     perror("readlink");
+    //     exit(1);
+    // }
     
-    // TODO: Make these statements easier to read (if I have time).
-    exePath[count] = '\0'; // Null-terminate the path
-    char* exeName = strrchr(exePath, '/'); // Find the last '/'
-    if (exeName) {
-        exeName++; // Move past the last '/'
-    } else {
-        exeName = exePath; // If no '/' found, the whole path is the name
-    }
-    strncpy(buffer, exeName, buffer_size - 1); // Copy the name into the buffer
-    buffer[buffer_size - 1] = '\0'; // Ensure null-termination
+    // // TODO: Make these statements easier to read (if I have time).
+    // exePath[count] = '\0'; // Null-terminate the path
+    // char* exeName = strrchr(exePath, '/'); // Find the last '/'
+    // if (exeName) {
+    //     exeName++; // Move past the last '/'
+    // } else {
+    //     exeName = exePath; // If no '/' found, the whole path is the name
+    // }
+    // strncpy(buffer, exeName, buffer_size - 1); // Copy the name into the buffer
+    // buffer[buffer_size - 1] = '\0'; // Ensure null-termination
 }
 
 /**
@@ -96,7 +98,7 @@ static inline void print_time(double const seconds) {
 // Intended for comparison, not accurate results, since the
 // sqrt call has been removed to increase reliability.
 __device__ __host__
-static inline double distance(const double* point1, const double* point2, int const dims) {
+static inline double get_distance(const double* point1, const double* point2, int const dims) {
     double sum = 0.0;
     for (int i = 0; i < dims; i++) {
         const double diff = point1[i] - point2[i];
@@ -115,7 +117,7 @@ static inline void check(const int result, const char* f_name) {
 }
 static inline void check_cuda(const cudaError_t result, const char* f_name) {
     if (result != cudaSuccess) {
-        fprintf(stderr, "cluster.c - %s failed: %s\n", f_name, cudaGetErrorString(err));
+        fprintf(stderr, "cluster.c - %s failed: %s\n", f_name, cudaGetErrorString(result));
         while (1) exit(-1);
     }
 }

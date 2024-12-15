@@ -1,18 +1,19 @@
 #include "cluster.h"
 
 // Expects params to be initialized.
-static inline double* read_points(char* filename, int* num_points, int* num_dims) {
+static inline double* read_points(char* filename, int* num_points, int* num_dims_ptr) {
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
         perror("cluster.c: Fail - fopen()");
         exit(1);
     }
 
-    check(fscanf(file, "%d %d", num_points, num_dims), "fscanf()");
+    check(fscanf(file, "%d %d", num_points, num_dims_ptr), "fscanf()");
 
-    double* points = (double*) malloc(*num_points * *num_dims * sizeof(double));
+    int num_dims = *num_dims_ptr;
+    double* points = (double*) malloc(*num_points * num_dims * sizeof(double));
     for (int point = 0; point < *num_points; point++) {
-        for (int dim = 0; dim < *num_dims; dim++) {
+        for (int dim = 0; dim < num_dims; dim++) {
             check(fscanf(file, "%lf", &(points[index(point, dim)])), "fscanf()");
         }
     }
@@ -45,7 +46,7 @@ static inline void write_medoids(double* points, int* medoids, int num_medoids, 
 
     fprintf(file, "%d %d", num_medoids, num_dims);
     for (int id = num_medoids - 1; id >= 0; id--) {
-        fprintf(file, "\n%.4f", points[index(0, dim)]);
+        fprintf(file, "\n%.4f", points[index(medoids[id], 0)]);
         for (int dim = 1; dim < num_dims; dim++) {
             fprintf(file, " %.4f", points[index(medoids[id], dim)]);
         }
@@ -77,7 +78,7 @@ static inline double get_cluster_size(const int medoid_id, const int* point_medo
     int cluster_id = point_medoid_ids[medoid_id];
     for (int point_id = 0; point_id < num_points; point_id++) {
         if (point_medoid_ids[point_id] == cluster_id) {
-            total_distance += distance(points + point_id, points + medoid_id, num_dims);
+            total_distance += get_distance(points + point_id, points + medoid_id, num_dims);
             point_count++;
         }
     }
@@ -105,7 +106,7 @@ void assign_points_to_clusters(
     int* num_points_ptr,
     int* medoids,
     int* num_medoids_ptr,
-    int* num_dims_ptr,
+    int* num_dims_ptr
 ) {
     // Calculate my point allocation.
     int p = gridDim.x * blockDim.x;
@@ -123,15 +124,15 @@ void assign_points_to_clusters(
         for (int id = 0; id < *num_medoids_ptr; id++) {
             const double* point = points + point_id;
             const double* medoid = points + medoids[id];
-            double distance = distance(point, medoid, *num_dims_ptr);
+            double distance = get_distance(point, medoid, *num_dims_ptr);
             if (distance < min_distance) {
                 min_distance = distance;
-                medoid_cluster_id = id;
+                closest_medoid_id = id;
             }
         }
 
         // Update this point to be part of the closest cluster.
-        point_medoid_ids[point_id] = medoid_cluster_id;
+        point_medoid_ids[point_id] = closest_medoid_id;
     }
 }
 
@@ -141,7 +142,7 @@ void get_cluster_sizes(
     double* points,
     int* point_medoid_ids,
     int* num_points_ptr,
-    int* num_dims_ptr,
+    int* num_dims_ptr
 ) {
     int p = gridDim.x * blockDim.x;
     int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -158,7 +159,7 @@ void get_cluster_sizes(
         int point_count = 0;
         for (int other_point_id = 0; other_point_id < num_points; other_point_id++) {
             if (point_medoid_ids[other_point_id] == point_medoid_ids[point_id]) {
-                total_distance += distance(points + other_point_id, points + point_id, num_dims);
+                total_distance += get_distance(points + other_point_id, points + point_id, num_dims);
                 point_count++;
             }
         }
@@ -235,7 +236,7 @@ int main(int argc, char* argv[]) {
                 gpu_num_points_ptr,
                 gpu_medoids,
                 gpu_num_clusters_ptr,
-                gpu_num_dims_ptr,
+                gpu_num_dims_ptr
             );
             
             check_cuda(cudaMemcpy(point_medoid_ids, gpu_point_medoid_ids, num_points * sizeof(int), FROM_GPU), "cudaMemcpyFrom");
@@ -274,7 +275,6 @@ int main(int argc, char* argv[]) {
             get_cluster_sizes<<<num_blocks, num_threads_per_block>>>(
                 gpu_point_cluster_sizes,
                 gpu_points,
-                gpu_medoids,
                 gpu_point_medoid_ids,
                 gpu_num_points_ptr,
                 gpu_num_dims_ptr
@@ -291,6 +291,7 @@ int main(int argc, char* argv[]) {
 
         double medoid_sizes[num_points];
         for (int point_id = 0; point_id < num_points; point_id++) {
+            const int medoid_id = point_medoid_ids[point_id];
             double size = point_cluster_sizes[point_id];
             if (size < medoid_sizes[medoid_id]) {
                 medoid_sizes[medoid_id] = size;
@@ -302,7 +303,7 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < num_medoids; i++) total_size += medoid_sizes[i];
         double new_average_cluster_size = total_size / num_medoids;
         double dif = average_cluster_size - new_average_cluster_size;
-        printf("Cluster size was %f, but is now %f (dif: %f). %d iterations remaining\n", average_cluster_size, new_average_cluster_size, dif, 20 - iterations);
+        printf("Cluster size was %f, but is now %f (dif: %f). %d iterations remaining\n", average_cluster_size, new_average_cluster_size, dif, 20 - iteration);
 
         if (dif < 0) {
             // This should not be possible.
@@ -323,7 +324,7 @@ int main(int argc, char* argv[]) {
     write_medoids(points, medoids, num_medoids, num_dims);
 
     // Cleanup main memory.
-    free_points(points, num_points);
+    free(points);
 
     return 0; // Success
 }

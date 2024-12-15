@@ -8,12 +8,13 @@ PARAMS = $(INPUT) $(NUM_CLUSTERS) $(NUM_BLOCKS) $(NUM_THREADS_PER_CLUSTER)
 # cp /export/scratch/CSCI-5451/assignment-3/small_cpd.txt .
 
 CC = nvcc
-SRC = cluster.c
+SRC = cluster.cu
 DEP = cluster.h
 ZIP = fulle637.tar.gz
 ZIP_DIR = fulle637
-
 EXE = km_cuda
+
+SUPRESS = # -Xcudafe="--diag_suppress=177"
 
 .PHONY: run all clean load
 
@@ -21,7 +22,7 @@ run: $(EXE)
 	./$(EXE) $(PARAMS)
 
 $(EXE): $(SRC) $(DEP)
-	$(CC) -O3 -Wall $(SRC) -o $(EXE)
+	$(CC) -O3 -Xcompiler="-Wall" $(SUPRESS) $(SRC) -o $(EXE)
 
 load:
 	module load soft/cuda/local
