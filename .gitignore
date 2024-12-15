@@ -1,0 +1,14 @@
+# Built files
+*.o
+*.s
+hello_cuda
+
+# Output files
+clusters.txt
+medoids.txt
+clusters_diff.txt
+medoids_diff.txt
+fulle637.tar.gz
+
+# Data files
+small_gaussian.txt
