@@ -5,6 +5,7 @@ hello_cuda
 km_cuda
 
 # Output files
+output.txt
 clusters.txt
 medoids.txt
 clusters_diff.txt

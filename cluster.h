@@ -14,6 +14,7 @@
 #endif
 
 // Really cursed preprocessor directives.
+#define get_point(id) points + ((id) * num_dims)
 #define index(point, dim) ((point) * num_dims + (dim))
 #define parse_int(str) ((int) strtol((str), (char**) NULL, 10))
 #define duration(start, end) ((end) - (start))
@@ -23,42 +24,9 @@
 
 #define TO_GPU cudaMemcpyHostToDevice
 #define FROM_GPU cudaMemcpyDeviceToHost
-#define convergence_threshold 0.000001
+#define THRESHOLD 0.000001
 #define CLUSTER_OUTPUT_PATH "clusters.txt"
 #define MEDOID_OUTPUT_PATH "medoids.txt"
-
-/**
- * @brief Gets the name of the executible file executing the this program.
- * 
- * @param buffer A buffer into which to save the name.
- * @param buffer_size The size of the buffer. If this is smaller than the
- *                    length of the name, extra characters are chopped off.
- *
- * It is recomended to ensure buffer_size is at least PATH_MAX to avoid
- * characters being chopped off of the file name.
- */
-static inline void get_exe_name(char* buffer, size_t buffer_size) {
-    sprintf(buffer, "km_cuda"); // TODO: Remove this terrible hack.
-
-    // char exePath[PATH_MAX];
-    // ssize_t count = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
-
-    // if (count == -1) {
-    //     perror("readlink");
-    //     exit(1);
-    // }
-    
-    // // TODO: Make these statements easier to read (if I have time).
-    // exePath[count] = '\0'; // Null-terminate the path
-    // char* exeName = strrchr(exePath, '/'); // Find the last '/'
-    // if (exeName) {
-    //     exeName++; // Move past the last '/'
-    // } else {
-    //     exeName = exePath; // If no '/' found, the whole path is the name
-    // }
-    // strncpy(buffer, exeName, buffer_size - 1); // Copy the name into the buffer
-    // buffer[buffer_size - 1] = '\0'; // Ensure null-termination
-}
 
 /**
  * @brief Return the number of seconds since an unspecified time (e.g., Unix
@@ -98,11 +66,11 @@ static inline void print_time(double const seconds) {
 // Intended for comparison, not accurate results, since the
 // sqrt call has been removed to increase reliability.
 __device__ __host__
-static inline double get_distance(const double* point1, const double* point2, int const dims) {
+static inline double get_distance(double* point1, double* point2, int num_dims) {
     double sum = 0.0;
-    for (int i = 0; i < dims; i++) {
+    for (int i = 0; i < num_dims; i++) {
         const double diff = point1[i] - point2[i];
-        sum += diff * diff;
+        sum += (diff * diff);
     }
     return sum;
 }
