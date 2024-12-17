@@ -3,6 +3,7 @@
 *.s
 hello_cuda
 km_cuda
+km_openmp
 
 # Output files
 output.txt

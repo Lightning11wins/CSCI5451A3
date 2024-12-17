@@ -1,7 +1,8 @@
-INPUT = /export/scratch/CSCI-5451/assignment-3/small_gaussian.txt
-NUM_CLUSTERS = 256
-NUM_BLOCKS = 1
-NUM_THREADS_PER_CLUSTER = 1
+INPUT = /export/scratch/CSCI-5451/assignment-3/small_cpd.txt
+NUM_CLUSTERS = 1024
+NUM_BLOCKS = 256
+NUM_THREADS_PER_CLUSTER = 80
+NUM_PROC = 80
 PARAMS = $(INPUT) $(NUM_CLUSTERS) $(NUM_BLOCKS) $(NUM_THREADS_PER_CLUSTER)
 
 # cp /export/scratch/CSCI-5451/assignment-3/small_gaussian.txt .
@@ -16,13 +17,17 @@ EXE = km_cuda
 
 SUPRESS = -Xcudafe="--diag_suppress=177"
 
-.PHONY: run all clean load $(EXE)
+.PHONY: run all clean load $(EXE) test
 
 run: $(EXE)
 	./$(EXE) $(PARAMS)
 
 $(EXE): $(SRC) $(DEP)
 	$(CC) -O3 -Xcompiler="-Wall" $(SUPRESS) $(SRC) -o $(EXE)
+
+test:
+	gcc -O3 km_openmp.cc -o km_openmp --openmp
+	./km_openmp $(INPUT) $(NUM_CLUSTERS) $(NUM_PROC)
 
 load:
 	module load soft/cuda/local

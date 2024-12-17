@@ -4,7 +4,9 @@
 static inline double* read_points(char* filename, uint* num_points_ptr, uint* num_dims_ptr) {
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
-        perror("cluster.c: Fail - fopen(%s, \"r\")", filename);
+        char buff[1024];
+        sprintf(buff, "cluster.c: Fail - fopen(%s, \"r\")", filename);
+        perror(buff);
         exit(1);
     }
 
@@ -26,7 +28,9 @@ static inline double* read_points(char* filename, uint* num_points_ptr, uint* nu
 static inline void write_clusters(uint* point_medoid_ids, uint num_points) {
     FILE *file = fopen(CLUSTER_OUTPUT_PATH, "w");
     if (file == NULL) {
-        perror("cluster.c: Fail - fopen(%s, \"w\")", CLUSTER_OUTPUT_PATH);
+        char buff[1024];
+        sprintf(buff, "cluster.c: Fail - fopen(%s, \"r\")", CLUSTER_OUTPUT_PATH);
+        perror(buff);
         exit(1);
     }
 
@@ -40,7 +44,9 @@ static inline void write_clusters(uint* point_medoid_ids, uint num_points) {
 static inline void write_medoids(double* points, uint* medoids, uint num_medoids, uint num_dims) {
     FILE *file = fopen(MEDOID_OUTPUT_PATH, "w");
     if (file == NULL) {
-        perror("cluster.c: Fail - fopen(%s, \"w\")", MEDOID_OUTPUT_PATH);
+        char buff[1024];
+        sprintf(buff, "cluster.c: Fail - fopen(%s, \"r\")", MEDOID_OUTPUT_PATH);
+        perror(buff);
         exit(1);
     }
 
@@ -58,15 +64,15 @@ static inline void write_medoids(double* points, uint* medoids, uint num_medoids
 __device__ __host__
 static inline void get_chunk(uint p, uint i, uint n, uint* start, uint* end) {
     // Slower version with branching, easier to understand.
-    uint chunk_size = n / p, extra = n % p;
-    *start = i * chunk_size + ((i < extra) ? i : extra);
-    *end = *start + chunk_size + ((i < extra) ? 1 : 0);
+    // uint chunk_size = n / p, extra = n % p;
+    // *start = i * chunk_size + ((i < extra) ? i : extra);
+    // *end = *start + chunk_size + ((i < extra) ? 1 : 0);
     
     // Faster version, less readable.
-    // int chunk_size = n / p, extra = n % p;
-    // int offset = i * (chunk_size + 1) - (i >= extra) * (i - extra);
-    // *start = offset;
-    // *end = offset + chunk_size + (i < extra);
+    uint chunk_size = n / p, extra = n % p;
+    uint offset = i * (chunk_size + 1) - (i >= extra) * (i - extra);
+    *start = offset;
+    *end = offset + chunk_size + (i < extra);
 }
 
 __global__
@@ -84,7 +90,7 @@ void assign_points_to_clusters(
     uint n = *num_points_ptr;
     uint start, end;
     get_chunk(p, i, n, &start, &end);
-    printf("get_chunk(%d, %d, %d, %d, %d);\n", p, i, n, start, end);
+    // printf("get_chunk(%d, %d, %d, %d, %d);\n", p, i, n, start, end);
 
     uint num_medoids = *num_medoids_ptr;
     uint num_dims = *num_dims_ptr;
@@ -92,7 +98,7 @@ void assign_points_to_clusters(
     // Itterate through my points.
     for (uint cur_point_id = start; cur_point_id < end; cur_point_id++) {
         double min_distance = INFINITY;
-        uint closest_medoid_id = 1234567890;
+        uint closest_medoid_id = 1234567890; // Obviously incorrect value, since it should never apear anywhere.
 
         // Itterate through medoids to find the closest one.
         for (uint medoid_id = 0; medoid_id < num_medoids; medoid_id++) {
@@ -112,11 +118,6 @@ void assign_points_to_clusters(
                 min_distance = distance;
                 closest_medoid_id = medoid_id;
             }
-        }
-
-        // TODO: Remove
-        if (closest_medoid_id == 1234567890) {
-            printf("AAAA\n");
         }
 
         // Update this point to be part of the closest cluster.
@@ -143,16 +144,16 @@ void get_cluster_sizes(
 
     // Calculate the cluster size for each point if that point were the mediod
     for (uint point_id = start; point_id < end; point_id++) {
-        double total_distance = 0.0;
+        point_cluster_sizes[point_id] = 0.0;
         uint point_count = 0;
+        uint medoid_id = point_medoid_ids[point_id];
         for (uint other_point_id = 0; other_point_id < num_points; other_point_id++) {
-            if (point_medoid_ids[other_point_id] == point_medoid_ids[point_id]) {
-                total_distance += get_distance(get_point(other_point_id), get_point(point_id), num_dims);
+            if (medoid_id == point_medoid_ids[other_point_id]) {
+                point_cluster_sizes[point_id] += get_distance(get_point(point_id), get_point(other_point_id), num_dims);
                 point_count++;
             }
         }
-        // printf("Point %d was %lf away from %d other points.\n", point_id, total_distance, point_count);
-        point_cluster_sizes[point_id] = total_distance / point_count;
+        // printf("Cluster %d found to have %d points.\n", medoid_id, point_count);
     }
 }
 
@@ -210,7 +211,6 @@ int main(int argc, char* argv[]) {
             check_cuda(cudaMalloc((void**) &gpu_num_clusters_ptr, sizeof(uint)),                           "cudaMalloc");
             check_cuda(cudaMalloc((void**) &gpu_num_dims_ptr,     sizeof(uint)),                           "cudaMalloc");
 
-            // check_cuda(cudaMemcpy(gpu_point_medoid_ids, point_medoid_ids,  num_points * sizeof(uint),              TO_GPU), "cudaMemcpyTo");
             check_cuda(cudaMemcpy(gpu_points,           points,            num_points * num_dims * sizeof(double), TO_GPU), "cudaMemcpyTo");
             check_cuda(cudaMemcpy(gpu_num_points_ptr,   &num_points,       sizeof(uint),                           TO_GPU), "cudaMemcpyTo");
             check_cuda(cudaMemcpy(gpu_medoids,          medoids,           num_medoids * sizeof(uint),             TO_GPU), "cudaMemcpyTo");
@@ -236,9 +236,8 @@ int main(int argc, char* argv[]) {
             check_cuda(cudaFree(gpu_num_dims_ptr),     "cudaFree");
         }
 
-         // point_cluster_sizes: The size of this cluster if this the point with this id were the medoid.
+        // point_cluster_sizes[i] is the size of point i's cluster if it were the medoid.
         double point_cluster_sizes[num_points];
-        for (uint i = 0; i < num_points; i++) point_cluster_sizes[i] = INFINITY; // Remove later
         
         {
             double* gpu_point_cluster_sizes;
@@ -276,37 +275,36 @@ int main(int argc, char* argv[]) {
             check_cuda(cudaFree(gpu_num_dims_ptr),        "cudaFree");
         }
 
-        double medoid_sizes[num_points];
-        for (uint point_id = 0; point_id < num_points; point_id++) medoid_sizes[point_id] = INFINITY;
+        double cluster_sizes[num_points];
         for (uint point_id = 0; point_id < num_points; point_id++) {
             const uint medoid_id = point_medoid_ids[point_id];
             double size = point_cluster_sizes[point_id];
             if (size == INFINITY) {
                 printf("Point %d was infinity.\n", point_id);
             }
-            if (size < medoid_sizes[medoid_id]) {
-                medoid_sizes[medoid_id] = size;
+            if (isnan(cluster_sizes[medoid_id]) || size < cluster_sizes[medoid_id]) {
+                cluster_sizes[medoid_id] = size;
                 medoids[medoid_id] = point_id;
             }
         }
 
         double new_total_size = 0.0;
         for (uint medoid_id = 0; medoid_id < num_medoids; medoid_id++) {
-            if (medoid_sizes[medoid_id] == INFINITY) {
-                printf("Medoid %d has cluster of size infinity.\n", medoid_id);
+            if (isnan(cluster_sizes[medoid_id])) {
+                printf("Medoid %d has no points.\n", medoid_id);
             }
-            new_total_size += medoid_sizes[medoid_id];
+            new_total_size += cluster_sizes[medoid_id];
         }
         double dif = old_total_size - new_total_size;
         printf("Iteration %d - Size: %lf->%lf (dif: %lf).\n", iteration, old_total_size, new_total_size, dif);
 
-        // if (dif < 0) {
-        //     // This should not be possible.
-        //     printf("EXISTANCE BRINGS PAIN, PLEASE FREE ME!!\n");
-        //     fflush(stdout);
-        // }
+        // This should not be possible.
+        if (dif < 0) {
+            printf("EXISTANCE BRINGS PAIN, PLEASE FREE ME!!\n");
+            fflush(stdout);
+        }
 
-        // if (dif < THRESHOLD) break;
+        if (dif < THRESHOLD) break;
         old_total_size = new_total_size;
     }
 
