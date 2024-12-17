@@ -1,5 +1,5 @@
 INPUT = /export/scratch/CSCI-5451/assignment-3/small_cpd.txt
-NUM_CLUSTERS = 1024
+NUM_CLUSTERS = 512
 NUM_BLOCKS = 80
 NUM_THREADS_PER_CLUSTER = 256
 NUM_PROC = 80
@@ -36,7 +36,7 @@ load:
 	module initrm soft/cuda
 
 clean:
-	rm -f $(EXE) $(ZIP) medoids.txt clusters.txt
+	rm -f $(EXE) $(ZIP) medoids.txt clusters.txt km_openmp
 	git repack -a -d --depth=2500 --window=2500
 	git gc --aggressive --prune=now
 	du -a | sort -n
@@ -44,7 +44,7 @@ clean:
 submission: clean
 	mkdir $(ZIP_DIR)
 	cp . $(ZIP_DIR)
-	tar --exclude='.gitignore' --exclude='hello_cuda.cu' -czvf $(ZIP) $(ZIP_DIR)
+	tar -czvf $(ZIP) $(ZIP_DIR)
 
 diff:
 	diff clusters.txt clusters_correct.txt > clusters_diff.txt
