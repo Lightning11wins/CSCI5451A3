@@ -12,12 +12,14 @@ CC = nvcc
 SRC = cluster.cu
 DEP = cluster.h
 ZIP = fulle637.tar.gz
-ZIP_DIR = fulle637
+ZIP_DIR = ../fulle637
 EXE = km_cuda
 
 SUPRESS = -Xcudafe="--diag_suppress=177"
 
 .PHONY: run all clean load $(EXE) test
+
+all: $(EXE)
 
 run: $(EXE)
 	./$(EXE) $(PARAMS)
@@ -36,6 +38,7 @@ load:
 	module initrm soft/cuda
 
 clean:
+	rm -rf $(ZIP_DIR)
 	rm -f $(EXE) $(ZIP) medoids.txt clusters.txt km_openmp
 	git repack -a -d --depth=2500 --window=2500
 	git gc --aggressive --prune=now
@@ -43,7 +46,7 @@ clean:
 
 submission: clean
 	mkdir $(ZIP_DIR)
-	cp . $(ZIP_DIR)
+	cp -r . $(ZIP_DIR)
 	tar -czvf $(ZIP) $(ZIP_DIR)
 
 diff:
