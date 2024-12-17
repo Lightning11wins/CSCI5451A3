@@ -1,0 +1,1 @@
+'./km_cuda /export/scratch/CSCI-5451/assignment-3/small_cpd.txt 1024 80 256
