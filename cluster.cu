@@ -4,7 +4,7 @@
 static inline double* read_points(char* filename, uint* num_points_ptr, uint* num_dims_ptr) {
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
-        perror("cluster.c: Fail - fopen()");
+        perror("cluster.c: Fail - fopen(%s, \"r\")", filename);
         exit(1);
     }
 
@@ -26,7 +26,7 @@ static inline double* read_points(char* filename, uint* num_points_ptr, uint* nu
 static inline void write_clusters(uint* point_medoid_ids, uint num_points) {
     FILE *file = fopen(CLUSTER_OUTPUT_PATH, "w");
     if (file == NULL) {
-        perror("cluster.c: Fail - fopen()");
+        perror("cluster.c: Fail - fopen(%s, \"w\")", CLUSTER_OUTPUT_PATH);
         exit(1);
     }
 
@@ -40,16 +40,16 @@ static inline void write_clusters(uint* point_medoid_ids, uint num_points) {
 static inline void write_medoids(double* points, uint* medoids, uint num_medoids, uint num_dims) {
     FILE *file = fopen(MEDOID_OUTPUT_PATH, "w");
     if (file == NULL) {
-        perror("cluster.c: Fail - fopen()");
+        perror("cluster.c: Fail - fopen(%s, \"w\")", MEDOID_OUTPUT_PATH);
         exit(1);
     }
 
-    fprintf(file, "%d %d", num_medoids, num_dims);
     for (uint id = 0; id < num_medoids; id++) {
-        fprintf(file, "\n%.4f", points[index(medoids[id], 0)]);
+        fprintf(file, "%.8f", points[index(medoids[id], 0)]);
         for (uint dim = 1; dim < num_dims; dim++) {
-            fprintf(file, " %.4f", points[index(medoids[id], dim)]);
+            fprintf(file, " %.8f", points[index(medoids[id], dim)]);
         }
+        fprintf(file, "\n");
     }
 
     check(fclose(file), "fclose()");
