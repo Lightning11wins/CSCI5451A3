@@ -90,7 +90,6 @@ void assign_points_to_clusters(
     uint n = *num_points_ptr;
     uint start, end;
     get_chunk(p, i, n, &start, &end);
-    // printf("get_chunk(%d, %d, %d, %d, %d);\n", p, i, n, start, end);
 
     uint num_medoids = *num_medoids_ptr;
     uint num_dims = *num_dims_ptr;
@@ -153,7 +152,6 @@ void get_cluster_sizes(
                 point_count++;
             }
         }
-        // printf("Cluster %d found to have %d points.\n", medoid_id, point_count);
     }
 }
 
@@ -276,12 +274,10 @@ int main(int argc, char* argv[]) {
         }
 
         double cluster_sizes[num_points];
+        for (uint point_id = 0; point_id < num_points; point_id++) cluster_sizes[point_id] = 0.0 / 0.0;
         for (uint point_id = 0; point_id < num_points; point_id++) {
             const uint medoid_id = point_medoid_ids[point_id];
             double size = point_cluster_sizes[point_id];
-            if (size == INFINITY) {
-                printf("Point %d was infinity.\n", point_id);
-            }
             if (isnan(cluster_sizes[medoid_id]) || size < cluster_sizes[medoid_id]) {
                 cluster_sizes[medoid_id] = size;
                 medoids[medoid_id] = point_id;
